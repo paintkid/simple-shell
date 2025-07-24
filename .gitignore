@@ -1,0 +1,5 @@
+# Compiled output
+main
+
+# Debug symbols (macOS)
+*.dSYM
