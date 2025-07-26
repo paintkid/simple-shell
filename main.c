@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <unistd.h>
+#include <sys/wait.h>
+
 #define TOKEN_BUFSIZE 64
 #define TOKEN_DELIMITERS " \t\r\n\a"
 
@@ -41,29 +44,54 @@ char **shell_parse_line(char *line) {
   return tokens;
 }
 
+/**
+ * @brief Forks a new process to execute the given command.
+ * @param args Null-terminated list of arguments (command and its parameters).
+ * @return 1 to continue the shell loop, 0 to terminate.
+ */
+int shell_launch(char **args) {
+  pid_t pid;
+  int status;
+
+  pid = fork();
+  if (pid == 0) {
+    if (execvp(args[0], args) == -1) {
+      perror("shell");
+    }
+    exit(EXIT_FAILURE);
+  } else if (pid < 0) {
+    perror("shell");
+  } else {
+    do {
+      waitpid(pid, &status, WUNTRACED);
+    } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+  }
+
+  return 1;
+}
+
 void shell_loop(void) {
   char *line = NULL; 
   char **args;
   size_t len = 0;
   ssize_t nread;
+  int status;
 
-  while (1) {
+  do {
     printf("> ");
     nread = getline(&line, &len, stdin);
 
     if (nread == -1) {
       printf("\n");
+      status = 0; 
       break;
     }
     
     args = shell_parse_line(line);
-
-    for (int i = 0; args[i] != NULL; i++) {
-        printf("arg[%d]: %s\n", i, args[i]);
-    }
+    status = shell_launch(args);
 
     free(args);
-  }
+  } while (status);
 
   free(line);
 }
